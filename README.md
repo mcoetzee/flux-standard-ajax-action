@@ -22,27 +22,28 @@ The ajax action would be handled by FSAA compliant middleware (which would react
 - Should be easy to read and write - easing the learning curve of writing Ajax in Redux applications
 - Should be flexible - common Ajax request requirements should be covered including request cancellation, debouncing, timeouts, retries
 - Should enable the creation of useful tools and abstractions
+- Should be an extension of FSA 
+- Should be idiomatic Redux (action log should still make sense, serializable etc)
 
 ### Estimated Benefits
 - a dramatic decrease in the amount of async actions required in your average application (as the ajax related async actions would fall away)
 - it's declarative, implementation details no longer the concern of the developer
 - different FSAA compliant middleware could be swopped in/out without breakages
-- it's idiomatic Redux (action log still makes sense, serializable etc)
 
-### Details
+## Details
 ```js
 function likePost(postId) {
   return {
     type: 'LIKE_POST_REQUEST',
-    // Ajax request setup
+
     ajax: {
       url: `/api/posts/${postId}/likes`,
       method: 'POST',
 
-      // Optional data attribute. Translated into query string params for GET requests
+      // Optional request data
       data: { ... },
 
-      // Optional ajax meta attributes
+      // Optional request meta attributes
       meta: {
         // Amount of times to retry the request on failure
         retry: 2,
@@ -68,12 +69,85 @@ function likePost(postId) {
         groupUid: `like-post-${postId}`,
       },
 
-      // Optional headers. "Content-Type": "application/json" added by default
+      // Optional request headers
       headers: { ... },
 
       // Optional response callback
       response: data => normalize(data, posts),
     }
   };  
+}
+```
+### GET Request Data
+- Should be encoded into query string params
+- Should handle encoding arrays in ```indices```, ```brackets``` or ```repeat``` format
+- Should allow array encoding format to be configured
+
+### Non-GET Request Data
+- Should be sent as JSON
+
+### Request Headers
+- Should add ```"Content-Type": "application/json"``` by default if not provided
+
+### Response Callbacks
+
+- Should be removed from the action in the middleware so that they don't make their way into the action log or the reducers
+
+A serializable option could be added as an alternative to the callbacks if deemed necessary.
+
+### Response Types
+
+- Should be auto generated
+
+```
+LIKE_POST_REQUEST -> LIKE_POST_SUCCESS | LIKE_POST_FAILURE
+```
+
+- Should be configurable when creating the middleware. E.g.
+
+```js
+createAjaxMiddleware({ 
+  requestSuffix: 'REQUEST',
+  successSuffix: 'SUCCESS',
+  failureSuffix: 'FAILURE'
+});
+```
+### Successful/Fulfilled Requests
+
+- Should copy over the ```ajax``` attribute from the request into its ```meta``` attribute
+
+```js
+{
+  type: 'LIKE_POST_SUCCESS',
+  // The response data
+  payload: { ... },
+  meta: {
+    ajax: { 
+      url: '/api/posts/42/likes',
+      method: 'POST'
+    }
+  }
+}
+```
+### Failed Requests
+
+- Should follow the approach outlined in the FSA spec for errors
+- Should include HTTP error information in the payload
+- Should copy over the ```ajax``` attribute from the request into its ```meta``` attribute
+
+```js
+{
+  type: 'LIKE_POST_FAILURE',
+  error: true,
+  payload: {
+    status: [status code],
+    text: [status text]
+  },
+  meta: {
+    ajax: { 
+      url: '/api/posts/42/likes',
+      method: 'POST'
+    }
+  }
 }
 ```
