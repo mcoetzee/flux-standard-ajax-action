@@ -1,8 +1,10 @@
-## Flux Standard Ajax Action
+## Flux Standard Ajax Action (exploratory)
 A human-friendly standard for Ajax Flux action objects. Feedback welcome.
 
 ### Motivation
-Ajax seems to be a area where new learners get stuck, whether they're learning to use thunks, sagas or epics. One area where they don't seem to have much difficulty is creating actions - as they're just plain old Javascript objects, and we have the added clarity provided by the Flux Standard Actions spec. This line of thinking led to the question - Why not develop a Flux Standard Ajax Action?
+The motivation behind this is two-fold and was sparked by the [Redux discussion](https://github.com/reactjs/redux/issues/2295) about potential abstractions to ease its learning curve. **Firstly**, Ajax seems to be an area where new learners have difficulty, whether they're learning to use thunks, sagas or epics. One area where they don't seem to have much difficulty is creating actions - as they're just plain old Javascript objects™️, and we have the added clarity provided by the Flux Standard Actions spec. **Secondly**, as the Redux eco-system grows, more libraries will have the need to make requests on your behalf e.g. [redux-offline](https://github.com/jevakallio/redux-offline). Currently there is no standard way to make requests, which forces these libraries to roll their own implementation.
+
+This line of thinking led to the question - Why not develop a Flux Standard Ajax Action?
 
 A basic Flux Standard Ajax Action:
 ```js
@@ -28,7 +30,7 @@ The ajax action would be handled by FSAA compliant middleware (which would react
 ### Estimated Benefits
 - a dramatic decrease in the amount of async actions required in your average application (as the ajax related async actions would fall away)
 - it's declarative, implementation details no longer the concern of the developer
-- different FSAA compliant middleware could be swopped in/out without breakages
+- different FSAA compliant middleware could be swopped in/out without breakages, which should allow for some competition
 
 ## Details
 ```js
@@ -46,7 +48,7 @@ function likePost(postId) {
       // Optional request meta attributes
       meta: {
         // Amount of times to retry the request on failure
-        retry: 2,
+        retries: 2,
 
         // Amount of time before timing out
         timeout: 10000,  
@@ -60,20 +62,40 @@ function likePost(postId) {
         // Request resolving strategy when multiple LIKE_POST_REQUESTs are in flight
         resolve: 'LATEST',
 
-        // Fine tune debouncing and request resolving within the action type.
+        // Fine tune debouncing and request resolving.
         // E.g. you could debounce LIKE_POST_REQUESTs by post id
         group: postId,
 
         // Broaden debouncing and request resolving across related action types.
-        // E.g. you could debounce LIKE_POST_REQUEST and UNLIKE_POST_REQUESTs by postId
-        groupUid: `like-post-${postId}`,
+        // E.g. you could debounce LIKE_POST_REQUEST and UNLIKE_POST_REQUESTs together
+        // if both have the same groupUid
+        groupUid: `like-unlike-${postId}`,
       },
 
       // Optional request headers
       headers: { ... },
 
       // Optional response callback
-      response: data => normalize(data, posts),
+      response: data => normalize(...),
+  
+      // Optional response type
+      responseType: 'json',
+
+      // Optional chain of FSAAs to dispatch sequentially
+      chain: [
+        res => fetchFoo(...),
+        res => fetchFooBars(...)
+      ],
+
+      // Optional cross domain flag
+      crossDomain: false,
+
+      // Optional credentials flag
+      withCredentials: false,
+
+      // Optional username and password to be used with XMLHttpRequest
+      username: '...',
+      password: '...',
     }
   };  
 }
@@ -87,13 +109,11 @@ function likePost(postId) {
 - Should be sent as JSON
 
 ### Request Headers
-- Should add ```"Content-Type": "application/json"``` by default if not provided
+- Should add ```'Content-Type': 'application/json; charset=UTF-8'``` by default if not provided
 
 ### Response Callbacks
 
 - Should be removed from the action in the middleware so that they don't make their way into the action log or the reducers
-
-A serializable option could be added as an alternative to the callbacks if deemed necessary.
 
 ### Response Types
 
@@ -151,3 +171,20 @@ createAjaxMiddleware({
   }
 }
 ```
+### Request Chains
+- Should be removed from the action in the middleware so that they don't make their way into the action log or the reducers
+
+**General thoughts on chaining requests**
+- Should only be used for unique data flows (edge cases)
+- If you find yourself using these chains often, then it could be time to look into [redux-observable](https://github.com/redux-observable/redux-observable) / [redux-saga](https://github.com/redux-saga/redux-saga) for setting up these side effects
+
+### FSAA  Compliant Middleware
+[redux-ajaxable](https://github.com/mcoetzee/redux-ajaxable) built with RxJS
+
+### Prior Art
+[redux-api-middleware](https://github.com/agraboso/redux-api-middleware) also introduced the concept of having a standard action, which they called Redux Standard API-calling Action. There are some important differences between it and FSAA including:
+- it doesn't have the Ajax meta attributes dealing with request cancellation, retries, resolve strategies etc
+- the action isn't an extension to FSA, so doesn't naturally fit in with your other FSA action creators
+- all three types (request, success, failure) need to be provided for each request
+
+The project's future also seems in doubt as activity has died down and new maintainers are required.
